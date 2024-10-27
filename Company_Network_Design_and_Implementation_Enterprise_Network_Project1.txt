@@ -1,0 +1,243 @@
+############ CONFIG STEPS #################
+
+-------------------------------------------
+1.Basic settings (For all devices)
+-------------------------------------------
+#
+banner motd #Unauthorized Access Restricted!!!!!!#
+no ip domain-lookup
+line console 0
+password cisco
+login
+exit
+#
+enable password cisco
+service pass
+exit
+#
+-------------------------------------------
+2.SSH configuration (Routers & L3 Switch)
+-------------------------------------------
+#
+ip domain name cisco.net
+username admin password cisco
+crypto key generate rsa
+1024
+line vty 0 15
+login local
+transport input ssh
+exit
+ip ssh ver 2
+#
+------------------------------------------------------
+3.Vlan Assaignment and Port Configuration (L2 Switch)
+------------------------------------------------------
+#
+vlan 60
+name ServerRoom
+vlan 99
+name BlackHole
+exit
+int range fa0/3-24
+switchport mode access
+switchport access vlan 60
+no shut
+exit
+int range gig0/1-2
+switchport mode access
+switchport access vlan 99
+shut
+exit
+int range fa0/1-2
+switchport mode trunk
+no shut
+exit
+do wr
+#
+--------------------------------------------------
+4.Port Security (Finance Vlan)
+--------------------------------------------------
+int range fa0/3-24
+switchport port-security maximum 1
+switchport port-security mac-address sticky
+switchport port-security violation shutdown
+do wr
+exit
+#
+--------------------------------------------------
+5.Vlan Assaignment and Port Configuration (L3 Switch)
+---------------------------------------------------
+#	
+vlan 10
+nam Sales
+ex
+vlan 20
+nam HR
+ex
+vlan 30
+nam Finance
+ex
+vlan 40
+nam Admin
+ex
+vlan 50
+nam ICT
+ex
+vlan 60
+nam ServerRoom
+ex
+int range gig1/0/3-8
+switchport mode trunk
+no shut
+ex
+#
+---------------------------------------------------------------
+6.IP address assigning 
+---------------------------------------------------------------
+#######For L3 Switch######
+int gig1/0/1
+no switchport
+ip address 172.16.3.153 255.255.255.252
+no shut 
+ex
+int gig1/0/2
+no switchport
+ip address 172.16.3.157 255.255.255.252
+no shut 
+ex
+#######For Router######
+int gig0/0
+ip address 172.16.3.158 255.255.255.252
+no shut 
+do wr
+ex
+int gig0/1
+ip address 172.16.3.150 255.255.255.252
+no shut 
+do wr
+ex
+do show ip int br
+#
+######Serial interface#############
+int serial 0/2/0
+ip address 195.136.17.1 255.255.255.252
+no shut 
+ex
+int serial 0/2/1
+ip address 195.136.17.9 255.255.255.252
+no shut
+do wr
+ex
+do show ip int br
+#
+-----------------------------------------------------------------
+7.Routing Protocol (OSPF) Configuration
+-----------------------------------------------------------------
+#############L3 Switch#######
+ip routing
+router ospf 10
+router-id 1.1.1.1
+network 172.16.1.0 0.0.0.127 area 0
+network 172.16.1.128 0.0.0.127 area 0
+network 172.16.2.0 0.0.0.127 area 0
+network 172.16.2.128 0.0.0.127 area 0
+network 172.16.3.0 0.0.0.127 area 0
+network 172.16.3.128 0.0.0.15 area 0
+
+network 172.16.3.156 0.0.0.3 area 0
+network 172.16.3.152 0.0.0.3 area 0
+ex
+#############Core Router#######
+router ospf 10
+router-id 4.4.4.4
+network 172.16.3.148 0.0.0.3 area 0
+network 172.16.3.156 0.0.0.3 area 0
+
+network 195.136.17.8 0.0.0.3 area 0
+network 195.136.17.12 0.0.0.3 area 0
+ex
+do wr
+#############ISP Router#######
+router ospf 10
+router-id 6.6.6.6
+network 195.136.17.4 0.0.0.3 area 0
+network 195.136.17.12 0.0.0.3 area 0
+ex
+do wr
+----------------------------------------------
+8.Inter Vlan Routing in L3 switch
+----------------------------------------------
+int vlan 10
+no shut
+ip add 172.16.1.1 255.255.255.128
+ip helper-address 172.16.3.130
+ex
+int vlan 20
+no shut
+ip add 172.16.1.129 255.255.255.128
+ip helper-address 172.16.3.130
+ex
+int vlan 30
+no shut
+ip add 172.16.2.1 255.255.255.128
+ip helper-address 172.16.3.130
+ex
+int vlan 40
+no shut
+ip add 172.16.2.129 255.255.255.128
+ip helper-address 172.16.3.130
+ex
+int vlan 50
+no shut
+ip add 172.16.3.1 255.255.255.128
+ip helper-address 172.16.3.130
+ex
+int vlan 60
+no shut
+ip add 172.16.3.129 255.255.255.240
+ip helper-address 172.16.3.130
+ex
+do wr
+---------------------------------------------------------
+9. PAT configuration (Boundary Router)
+---------------------------------------------------------
+ip nat inside source list 1 int se0/2/0 overload
+ip nat inside source list 1 int se0/2/1 overload
+access-list 1 permit 172.16.1.0 0.0.0.127
+access-list 1 permit 172.16.1.128 0.0.0.127
+access-list 1 permit 172.16.2.0 0.0.0.127 
+access-list 1 permit 172.16.2.128 0.0.0.127
+access-list 1 permit 172.16.3.0 0.0.0.127 
+access-list 1 permit 172.16.3.128 0.0.0.15 
+#
+int range gig0/0-1
+ip nat inside
+ex
+int se0/2/0
+ip nat outside
+ex
+int se0/2/1
+ip nat outside
+ex
+do wr
+ex
+--------------------------------------------------------------------
+10.Default Static Route configuration (L3 switch & Boundary Router)
+--------------------------------------------------------------------
+###############L3 switch################
+ip route 0.0.0.0 0.0.0.0 gig1/0/1
+ip route 0.0.0.0 0.0.0.0 gig1/0/2
+###############Boundary Router################
+ip route 0.0.0.0 0.0.0.0 se0/2/0
+ip route 0.0.0.0 0.0.0.0 se0/2/1
+------------------------------------------------------------------------
+
+**************Congratulations!!!!****************
+
+All the configuration Done successfully!!!!
+
+
+
+
+
+
